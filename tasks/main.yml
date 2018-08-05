@@ -1,0 +1,6 @@
+---
+
+- import_tasks: install_cli.yml
+  tags:
+    - databricks-cli
+    - always
