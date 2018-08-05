@@ -1,0 +1,25 @@
+---
+
+- name: Ensure Databricks CLI is installed
+  pip:
+    name: "databricks-cli"
+    version: "{{ databricks_cli_version }}"
+    executable: "{{ pip_executable }}"
+
+- name: Check for DATABRICKS_TOKEN environment variable if Ansible var not set
+  set_fact:
+    databricks_token: "{{ lookup('env', 'DATABRICKS_TOKEN') }}"
+  when: databricks_token is undefined
+
+- fail:
+    msg: "Environment variable DATABRICKS_TOKEN is not set!"
+  when: databricks_token == ""
+
+- name: Set Databricks CLI config
+  blockinfile:
+    path: ~/.databrickscfg
+    mode: '0600'
+    block: |
+      [{{ databricks_profile }}]
+      host = {{ databricks_host }}
+      token = {{ databricks_token }}
