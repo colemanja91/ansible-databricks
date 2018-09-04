@@ -11,6 +11,22 @@ apply idempotency to most configurable components.
 - Ansible >= 2.6
 - Token access to Databricks
 
+## Using in your Ansible playbook
+
+- Install in your Ansible repo: `ansible-galaxy install colemanja91.ansible-databricks`
+- Example playbook:
+
+```
+---
+- hosts:
+    - heaven
+  vars_files:
+    - "my/secret/file.yml"
+    - "my/ansible/variables.yml"
+  roles:
+    - { role: colemanja91.ansible-databricks }
+```
+
 ## Tasks
 
 ### CLI installation and setup
