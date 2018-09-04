@@ -79,14 +79,13 @@
       command: "databricks jobs create --profile {{ databricks_profile }} --json '{{ item | to_json }}'"
       with_items: "{{ databricks_jobs }}"
       when: item.name not in existing_job_names
-    - name: Reset existing jobs (update)
+    - name: Reset(update) existing jobs
       vars:
         query: "jobs[?settings.name==`{{ item.name }}`].job_id"
         job_id: "{{ existing_jobs.stdout | from_json | json_query(query) }}"
       command: "databricks jobs reset --job-id {{ job_id[0] }} --json '{{ item | to_json }}' --profile {{ databricks_profile }}"
       with_items: "{{ databricks_jobs }}"
       when: item.name in existing_job_names
-
   when: databricks_jobs is defined
   tags:
     - jobs
