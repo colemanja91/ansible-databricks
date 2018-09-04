@@ -15,6 +15,12 @@
     msg: "Environment variable DATABRICKS_TOKEN is not set!"
   when: databricks_token == ""
 
+- name: Ensure Databricks CLI config exists
+  file:
+    path: ~/.databrickscfg
+    mode: '0600'
+    state: touch
+
 - name: Set Databricks CLI config
   blockinfile:
     path: ~/.databrickscfg

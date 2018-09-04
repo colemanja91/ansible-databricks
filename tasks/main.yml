@@ -4,3 +4,88 @@
   tags:
     - databricks-cli
     - always
+
+# Databricks CLI currently does not offer a way to create mounts,
+#   so we're limited to ensuring mounts already exist.
+# TODO: Check for parity between mount point and expected destination (Azure Blob Storage, AWS S3)
+- name: Ensure DBFS mounts exist
+  block:
+    - shell: "dbfs ls dbfs:{{ item.dbfs_mount|quote }} --profile {{ databricks_profile|quote }} | head -n 1"
+      with_items: "{{ databricks_dbfs }}"
+      register: dbfs_check
+    - name: Check DBFS output
+      fail:
+        msg: "{{ item }}"
+      when: '"RESOURCE_DOES_NOT_EXIST" in item or
+            "RESOURCE_NOT_FOUND" in item'
+      with_items: "{{ dbfs_check | json_query('results[*].stdout') }}"
+  when: databricks_dbfs is defined
+  tags:
+    - dbfs
+
+# Only copies to DBFS location where jobs can reference
+# This role does not yet support libraries for interactive clusters
+- name: Install libraries to DBFS
+  block:
+    - name: Copy files to DBFS
+      command: "dbfs cp {{ item.src }} {{ item.dbfs }} --overwrite --profile {{ databricks_profile }}"
+      with_items: "{{ databricks_libraries }}"
+  when: databricks_libraries is defined
+  tags:
+    - libraries
+
+- name: Create Databricks secrets
+  block:
+    - name: Get existing secret scopes
+      command: "databricks secrets list-scopes --output JSON --profile {{ databricks_profile }}"
+      register: databricks_secret_scopes_raw
+    - set_fact:
+        databricks_secret_scopes: "{{ databricks_secret_scopes_raw.stdout | from_json | json_query('scopes[*].name') }}"
+    - name: Create secret scopes
+      command: "databricks secrets create-scope --scope {{ item.scope }} --initial-manage-principal users --profile {{ databricks_profile }}"
+      with_items: "{{ databricks_secrets }}"
+      when: item.scope not in databricks_secret_scopes
+    - name: Create/update secrets
+      command: "databricks secrets put --scope {{ item.scope }} --key {{ item.key }} --string-value {{ item.value }} --profile {{ databricks_profile }}"
+      with_items: "{{ databricks_secrets }}"
+      no_log: true
+  when: databricks_secrets is defined
+  tags:
+    - secrets
+
+- name: Create Databricks notebooks
+  block:
+    - name: Create workspace directories
+      command: "databricks workspace mkdirs {{ item.workspace_dir }} --profile {{ databricks_profile }}"
+      with_items: "{{ databricks_notebooks }}"
+      when: item.state == "present"
+    - name: Import notebooks
+      command: "databricks workspace import -l {{ item.language }} -f {{ item.format }} -o --profile {{ databricks_profile }} {{ item.src }} {{ item.workspace_dir }}/{{ item.target }}"
+      with_items: "{{ databricks_notebooks }}"
+      when: item.state == "present"
+  when: databricks_notebooks is defined
+  tags:
+    - notebooks
+
+- name: Create Databricks jobs
+  block:
+    - name: Get existing jobs
+      command: "databricks jobs list --output JSON --profile {{ databricks_profile }}"
+      register: existing_jobs
+    - name: Parse existing job names
+      set_fact:
+        existing_job_names: "{{ existing_jobs.stdout | from_json | json_query('jobs[*].settings.name') }}"
+    - name: Create new jobs
+      command: "databricks jobs create --profile {{ databricks_profile }} --json '{{ item | to_json }}'"
+      with_items: "{{ databricks_jobs }}"
+      when: item.name not in existing_job_names
+    - name: Reset(update) existing jobs
+      vars:
+        query: "jobs[?settings.name==`{{ item.name }}`].job_id"
+        job_id: "{{ existing_jobs.stdout | from_json | json_query(query) }}"
+      command: "databricks jobs reset --job-id {{ job_id[0] }} --json '{{ item | to_json }}' --profile {{ databricks_profile }}"
+      with_items: "{{ databricks_jobs }}"
+      when: item.name in existing_job_names
+  when: databricks_jobs is defined
+  tags:
+    - jobs
