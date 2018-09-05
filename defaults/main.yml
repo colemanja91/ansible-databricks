@@ -1,4 +1,4 @@
 ---
 
 pip_executable: pip3
-databricks_cli_version: "0.7.2"
+databricks_cli_version: "0.8.2"

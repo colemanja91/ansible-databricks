@@ -19,7 +19,7 @@ apply idempotency to most configurable components.
 ```
 ---
 - hosts:
-    - heaven
+    - localhost
   vars_files:
     - "my/secret/file.yml"
     - "my/ansible/variables.yml"
